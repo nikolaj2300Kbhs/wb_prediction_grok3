@@ -15,7 +15,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Grok 3 API configuration
-GROK_API_KEY = os.getenv('GROK_API_KEY')
+XAI_API_KEY = os.getenv('XAI_API_KEY')  # Changed from GROK_API_KEY to XAI_API_KEY
 GROK_API_URL = 'https://api.x.ai/v1/chat/completions'  # Hypothetical endpoint; update as needed
 
 def predict_box_score(historical_data, future_box_info):
@@ -29,7 +29,7 @@ Historical Data: {historical_data}
 Future Box Info: {future_box_info}
 """
         headers = {
-            'Authorization': f'Bearer {GROK_API_KEY}',
+            'Authorization': f'Bearer {XAI_API_KEY}',  # Updated to use XAI_API_KEY
             'Content-Type': 'application/json'
         }
         scores = []
@@ -50,8 +50,11 @@ Future Box Info: {future_box_info}
                 'temperature': 0,
                 'seed': 42  # For reproducibility, if supported
             }
+            logger.info(f"Sending request to xAI API: {payload}")
             response = requests.post(GROK_API_URL, json=payload, headers=headers)
-            response.raise_for_status()  # Raise an error for bad status codes
+            if response.status_code != 200:
+                logger.error(f"xAI API error: {response.status_code} - {response.text}")
+                raise Exception(f"xAI API error: {response.status_code} - {response.text}")
             result = response.json()
             score = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
             logger.info(f"Run response: {score}")
@@ -98,6 +101,6 @@ def health_check():
     return jsonify({'status': 'healthy'})
 
 if __name__ == '__main__':
-    if not GROK_API_KEY:
-        raise ValueError("GROK_API_KEY not set")
+    if not XAI_API_KEY:  # Updated to check XAI_API_KEY
+        raise ValueError("XAI_API_KEY not set")
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
