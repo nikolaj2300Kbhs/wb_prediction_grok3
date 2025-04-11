@@ -15,24 +15,24 @@ load_dotenv()
 app = Flask(__name__)
 
 # Grok 3 API configuration
-XAI_API_KEY = os.getenv('XAI_API_KEY')  # Changed from GROK_API_KEY to XAI_API_KEY
+XAI_API_KEY = os.getenv('XAI_API_KEY')
 GROK_API_URL = 'https://api.x.ai/v1/chat/completions'  # Hypothetical endpoint; update as needed
 
-def predict_box_score(historical_data, future_box_info):
-    """Predict an attractiveness score (1-5, two decimals) using Grok 3 API."""
+def predict_box_cac(historical_data, future_box_info):
+    """Predict the Customer Acquisition Cost (CAC) in euros for a future welcome box using Grok 3 API."""
     try:
         prompt = f"""
-You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members at low Customer Acquisition Cost (CAC). Based on the historical data provided, which includes box features and their corresponding CAC, predict an attractiveness score for the future welcome box. The score should be on a scale of 1 to 5, with two decimal places (e.g., 4.23), where 5 indicates the box is very likely to have a low CAC, and 1 indicates it is likely to have a high CAC. Consider factors such as the number of products, total retail value, number of unique categories, number of full-size products, number of premium products (>€20), total weight, average product rating, average brand rating, and average category rating. Return only the numerical score (e.g., 4.23).
+You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members at low Customer Acquisition Cost (CAC). Based on the historical data provided, which includes box features and their corresponding CAC in euros, predict the CAC for the future welcome box. The CAC should be a numerical value in euros, with two decimal places (e.g., 10.50). Consider factors such as the number of products, total retail value, number of unique categories, number of full-size products, number of premium products (>€20), total weight, average product rating, average brand rating, and average category rating. Return only the numerical CAC value in euros (e.g., 10.50).
 
 Historical Data: {historical_data}
 
 Future Box Info: {future_box_info}
 """
         headers = {
-            'Authorization': f'Bearer {XAI_API_KEY}',  # Updated to use XAI_API_KEY
+            'Authorization': f'Bearer {XAI_API_KEY}',
             'Content-Type': 'application/json'
         }
-        scores = []
+        cacs = []
         for _ in range(5):  # Run 5 times and average
             payload = {
                 'model': 'grok-3',  # Hypothetical model name
@@ -56,32 +56,32 @@ Future Box Info: {future_box_info}
                 logger.error(f"xAI API error: {response.status_code} - {response.text}")
                 raise Exception(f"xAI API error: {response.status_code} - {response.text}")
             result = response.json()
-            score = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
-            logger.info(f"Run response: {score}")
-            if not score:
+            cac = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            logger.info(f"Run response: {cac}")
+            if not cac:
                 logger.error("Model returned an empty response")
                 raise ValueError("Empty response from model")
             try:
-                score_float = float(score)
-                if not (1 <= score_float <= 5):
-                    raise ValueError("Score out of range")
-                scores.append(score_float)
+                cac_float = float(cac)
+                if cac_float < 0:  # CAC should not be negative
+                    raise ValueError("CAC cannot be negative")
+                cacs.append(cac_float)
             except ValueError as e:
-                logger.error(f"Invalid score format: {score}, error: {str(e)}")
-                raise ValueError(f"Invalid score: {score}")
-        if not scores:
-            raise ValueError("No valid scores collected")
-        avg_score = sum(scores) / len(scores)
-        final_score = f"{avg_score:.2f}"
-        logger.info(f"Averaged score from 5 runs: {final_score}")
-        return final_score
+                logger.error(f"Invalid CAC format: {cac}, error: {str(e)}")
+                raise ValueError(f"Invalid CAC: {cac}")
+        if not cacs:
+            raise ValueError("No valid CAC values collected")
+        avg_cac = sum(cacs) / len(cacs)
+        final_cac = f"{avg_cac:.2f}"
+        logger.info(f"Averaged CAC from 5 runs: {final_cac}")
+        return final_cac
     except Exception as e:
         logger.error(f"Error in prediction: {str(e)}")
         raise Exception(f"Prediction error: {str(e)}")
 
 @app.route('/predict_box_score', methods=['POST'])
 def box_score():
-    """Endpoint for predicting future box attractiveness scores."""
+    """Endpoint for predicting future box CAC in euros."""
     try:
         data = request.get_json()
         if not data or 'future_box_info' not in data:
@@ -89,8 +89,8 @@ def box_score():
             return jsonify({'error': 'Missing future_box_info'}), 400
         historical_data = data.get('historical_data', 'No historical data provided')
         future_box_info = data['future_box_info']
-        score = predict_box_score(historical_data, future_box_info)
-        return jsonify({'predicted_box_score': score})
+        cac = predict_box_cac(historical_data, future_box_info)
+        return jsonify({'predicted_cac': cac})  # Changed to return 'predicted_cac'
     except Exception as e:
         logger.error(f"Endpoint error: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -101,6 +101,6 @@ def health_check():
     return jsonify({'status': 'healthy'})
 
 if __name__ == '__main__':
-    if not XAI_API_KEY:  # Updated to check XAI_API_KEY
+    if not XAI_API_KEY:
         raise ValueError("XAI_API_KEY not set")
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
